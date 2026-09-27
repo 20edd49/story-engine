@@ -7,6 +7,7 @@ import type { Universe } from "@/lib/domain";
 import "./explorer.css";
 
 type Variables = CSSProperties & Record<`--${string}`, string | number>;
+type ExplorerUniverse = Universe & { continueHref?: string };
 
 function StarField() {
   return <div className="explorer-stars" aria-hidden="true">{Array.from({ length: 26 }, (_, i) =>
@@ -14,18 +15,19 @@ function StarField() {
   )}</div>;
 }
 
-function UniverseFocusPanel({ universe, selected, onEnter }: { universe: Universe; selected: boolean; onEnter: () => void }) {
+function UniverseFocusPanel({ universe, selected, onEnter }: { universe: ExplorerUniverse; selected: boolean; onEnter: () => void }) {
   return <div className="universe-focus-panel">
     <h2 className="explorer-title">{universe.shortName}</h2>
     <div className="explorer-details" aria-hidden={!selected} inert={!selected}>
       <p>{universe.tagline}</p>
+      {universe.continueHref && <Link href={universe.continueHref} className="explorer-continue">CONTINUE THE STORY</Link>}
       <Link href={`/${universe.slug}`} className="explorer-enter" aria-label={`ENTER ${universe.shortName}`} onNavigate={(event) => { event.preventDefault(); onEnter(); }}>ENTER</Link>
     </div>
   </div>;
 }
 
 function CelestialUniverse({ universe, index, total, selected, entering, onSelect, onEnter }: {
-  universe: Universe; index: number; total: number; selected: boolean; entering: boolean;
+  universe: ExplorerUniverse; index: number; total: number; selected: boolean; entering: boolean;
   onSelect: () => void; onEnter: () => void;
 }) {
   const config = universe.explorer ?? { x: (index + 1) * 100 / (total + 1), y: 48, depth: 1, scale: 1, variant: "warm-orbital", orbitCount: 3, bodyCount: 3 };
@@ -54,7 +56,7 @@ function CelestialUniverse({ universe, index, total, selected, entering, onSelec
   </div>;
 }
 
-export function UniverseExplorer({ universes }: { universes: Universe[] }) {
+export function UniverseExplorer({ universes }: { universes: ExplorerUniverse[] }) {
   const router = useRouter();
   const scene = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

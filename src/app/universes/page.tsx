@@ -13,8 +13,15 @@ import {
   continuityRepository,
 } from "@/lib/repositories/archive";
 import { Artwork } from "@/components/primitives";
-export default function Home() {
-  const universes = universeRepository.list();
+export default async function Home() {
+  const universes = await universeRepository.list();
+  const counts = await Promise.all(universes.map(async (u) => {
+    const [characters, continuities] = await Promise.all([
+      characterRepository.list(u.id),
+      continuityRepository.list(u.id),
+    ]);
+    return { characters: characters.length, continuities: continuities.length };
+  }));
   return (
     <div className="home page-width">
       <header className="home-intro">
@@ -70,9 +77,9 @@ export default function Home() {
                 <p className="universe-description">{u.description}</p>
                 <div className="universe-card-bottom">
                   <span>
-                    {characterRepository.list(u.id).length} characters <i />{" "}
-                    {continuityRepository.list(u.id).length}{" "}
-                    {continuityRepository.list(u.id).length === 1
+                    {counts[i].characters} characters <i />{" "}
+                    {counts[i].continuities}{" "}
+                    {counts[i].continuities === 1
                       ? "continuity"
                       : "continuities"}
                   </span>

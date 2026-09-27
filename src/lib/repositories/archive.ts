@@ -44,6 +44,22 @@ export const sceneRepository = {
     scoped(scenes, u).filter((s) => !c || s.continuityId === c),
   bySlug: (u: string, slug: string) =>
     scoped(scenes, u).find((s) => s.slug === slug),
+  byId: (u: string, id: string) =>
+    scoped(scenes, u).find((s) => s.id === id),
+};
+// Temporary local progress. A persisted implementation can replace this
+// repository without adding user-specific fields to universe content.
+const lastActiveSceneIds: Record<string, string> = {
+  "u-reyes": "sc-u-reyes",
+  "u-elias": "sc-u-elias",
+};
+export const progressRepository = {
+  continueHref: (u: string): string | undefined => {
+    const universe = universeRepository.byId(u);
+    const sceneId = lastActiveSceneIds[u];
+    const scene = sceneId && sceneRepository.byId(u, sceneId);
+    return universe && scene ? `/${universe.slug}/scenes/${scene.slug}` : undefined;
+  },
 };
 export const archiveRepository = {
   relationships: (u: string, c?: string) =>

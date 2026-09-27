@@ -8,6 +8,10 @@ export default async function SearchPage({
   searchParams: Promise<{ universe?: string; q?: string; kind?: string }>;
 }) {
   const p = await searchParams;
+  const [index, universes] = await Promise.all([
+    searchArchive(),
+    universeRepository.list(),
+  ]);
   return (
     <div className="page-width content-page">
       <PageIntro
@@ -16,8 +20,8 @@ export default async function SearchPage({
         description="Every person, place, and turning point. Search across the collection, or stay within one world."
       />
       <SearchDirectory
-        index={searchArchive()}
-        universes={universeRepository.list()}
+        index={index}
+        universes={universes}
         initialUniverse={p.universe}
         initialQuery={p.q}
         initialKind={p.kind}

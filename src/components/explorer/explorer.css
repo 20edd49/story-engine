@@ -26,6 +26,8 @@ body:has(.universe-explorer) .mobile-menu { display: none; }
 .explorer-title { display: block; font-family: var(--serif); font-size: clamp(21px, 2vw, 28px); letter-spacing: -.6px; color: #c1c5c0; opacity: 0; transform: translateY(5px); transition: opacity .3s, transform .3s; }
 .explorer-details { display: block; opacity: 0; transform: translateY(6px); transition: opacity .3s, transform .3s; font-family: var(--serif); font-size: 15px; color: #a4aaa7; margin-top: 10px; }
 .explorer-enter { display: flex; align-items: center; justify-content: center; gap: 22px; width: fit-content; min-height: 44px; margin: 14px auto 0; border-bottom: 1px solid color-mix(in srgb, var(--celestial-light) 40%, transparent); font-family: var(--sans); font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: #d9ddd6; }
+.explorer-continue { display: flex; align-items: center; justify-content: center; width: fit-content; min-height: 44px; margin: 12px auto 0; padding: 0 14px; border-bottom: 1px solid color-mix(in srgb, var(--celestial-light) 40%, transparent); font-family: var(--sans); font-size: 9px; letter-spacing: 1.8px; color: var(--celestial-ivory); }
+.explorer-continue + .explorer-enter { margin-top: 0; border-bottom-color: transparent; }
 .celestial-placement[data-selected="true"] .explorer-details { opacity: 1; transform: none; }
 .celestial-placement[data-selected="true"] .explorer-title, .celestial-placement:has(.celestial-universe:focus) .explorer-title { opacity: 1; transform: none; color: var(--celestial-ivory); }
 .celestial-placement[data-selected="true"] .celestial-art { filter: brightness(1.2); }
@@ -40,16 +42,16 @@ body:has(.universe-explorer) .mobile-menu { display: none; }
 
 .celestial-art { pointer-events: none; }
 .explorer-details p { color: inherit; }
-.celestial-placement[data-selected="true"] .explorer-enter { pointer-events: auto; }
+.celestial-placement[data-selected="true"] .explorer-enter, .celestial-placement[data-selected="true"] .explorer-continue { pointer-events: auto; }
 .explorer-enter { padding-inline: 14px; }
-.explorer-enter:focus-visible { outline: 1px solid var(--celestial-light); }
+.explorer-enter:focus-visible, .explorer-continue:focus-visible { outline: 1px solid var(--celestial-light); }
 @media (hover: hover) {
   .celestial-placement:has(.celestial-universe:hover) .explorer-title { opacity: 1; transform: none; }
   .celestial-universe:hover .celestial-art { filter: brightness(1.15); }
 }
 @media (max-width: 700px) {
   .universe-explorer { height: auto; min-height: 100svh; }
-  .explorer-systems { position: relative; inset: auto; display: grid; gap: 110px; padding: 14svh 24px 190px; }
+  .explorer-systems { position: relative; inset: auto; display: grid; gap: 150px; padding: 14svh 24px 190px; }
   .celestial-placement { position: relative; width: min(100%, 350px); left: auto; top: auto; margin-inline: auto; transform: none; }
   .celestial-art { width: 84%; margin: auto; }
   .celestial-core { width: 54px; height: 54px; }

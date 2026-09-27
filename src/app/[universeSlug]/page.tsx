@@ -25,7 +25,7 @@ export async function generateMetadata({
 }) {
   return {
     title:
-      universeRepository.bySlug((await params).universeSlug)?.shortName ||
+      (await universeRepository.bySlug((await params).universeSlug))?.shortName ||
       "Universe",
   };
 }
@@ -34,17 +34,18 @@ export default async function Overview({
 }: {
   params: Promise<{ universeSlug: string }>;
 }) {
-  const u = universeRepository.bySlug((await params).universeSlug);
+  const u = await universeRepository.bySlug((await params).universeSlug);
   if (!u) notFound();
-  const c = continuityRepository.byId(u.id, u.defaultContinuityId);
-  const characters = characterRepository.list(u.id);
-  const events = timelineRepository.list(u.id, u.defaultContinuityId);
-  const scenes = sceneRepository.list(u.id, u.defaultContinuityId);
-  const relationships = archiveRepository.relationships(
-    u.id,
-    u.defaultContinuityId,
-  );
-  const locations = archiveRepository.locations(u.id);
+  const [c, characters, events, scenes, relationships, locations, continuities] =
+    await Promise.all([
+      continuityRepository.byId(u.id, u.defaultContinuityId),
+      characterRepository.list(u.id),
+      timelineRepository.list(u.id, u.defaultContinuityId),
+      sceneRepository.list(u.id, u.defaultContinuityId),
+      archiveRepository.relationships(u.id, u.defaultContinuityId),
+      archiveRepository.locations(u.id),
+      continuityRepository.list(u.id),
+    ]);
   return (
     <>
       <div className="universe-hero">
@@ -74,10 +75,7 @@ export default async function Overview({
           </span>
           <span>
             <strong>
-              {continuityRepository
-                .list(u.id)
-                .length.toString()
-                .padStart(2, "0")}
+              {continuities.length.toString().padStart(2, "0")}
             </strong>{" "}
             Continuities
           </span>

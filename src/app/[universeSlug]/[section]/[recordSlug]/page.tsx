@@ -29,13 +29,15 @@ export default async function Record({
   }>;
 }) {
   const { universeSlug, section, recordSlug } = await params;
-  const u = universeRepository.bySlug(universeSlug);
+  const u = await universeRepository.bySlug(universeSlug);
   if (!u || !u.navigation.some((n) => n.module === section)) notFound();
-  const characters = chars.list(u.id);
   const main = u.defaultContinuityId;
-  const continuities = continuityRepository.list(u.id);
-  const scenes = sceneRepository.list(u.id);
-  const locations = archive.locations(u.id);
+  const [characters, continuities, scenes, locations] = await Promise.all([
+    chars.list(u.id),
+    continuityRepository.list(u.id),
+    sceneRepository.list(u.id),
+    archive.locations(u.id),
+  ]);
   const breadcrumb = (
     <nav className="breadcrumbs" aria-label="Breadcrumb">
       <Link href={`/${u.slug}`}>{u.shortName}</Link>
@@ -45,7 +47,7 @@ export default async function Record({
       <span>Record</span>
     </nav>
   );
-  const eventView = (events: ReturnType<typeof timelineRepository.list>) => (
+  const eventView = (events: Awaited<ReturnType<typeof timelineRepository.list>>) => (
     <Timeline
       events={events}
       universe={u}
@@ -70,20 +72,19 @@ export default async function Record({
       <EmptyState title="No linked scenes yet." />
     );
   if (section === "characters") {
-    const ch = chars.bySlug(u.id, recordSlug);
+    const ch = await chars.bySlug(u.id, recordSlug);
     if (!ch) notFound();
-    const relationships = archive
-      .relationships(u.id, main)
-      .filter((r) => r.characterIds.includes(ch.id));
-    const events = timelineRepository
-      .list(u.id, main)
-      .filter((e) => e.characterIds.includes(ch.id));
+    const [allRelationships, allEvents, allQuotes] = await Promise.all([
+      archive.relationships(u.id, main),
+      timelineRepository.list(u.id, main),
+      archive.quotes(u.id, main),
+    ]);
+    const relationships = allRelationships.filter((r) => r.characterIds.includes(ch.id));
+    const events = allEvents.filter((e) => e.characterIds.includes(ch.id));
     const linkedScenes = scenes.filter(
       (s) => s.characterIds.includes(ch.id) && s.continuityId === main,
     );
-    const quotes = archive
-      .quotes(u.id, main)
-      .filter((q) => q.characterId === ch.id);
+    const quotes = allQuotes.filter((q) => q.characterId === ch.id);
     return (
       <div className="page-width content-page">
         {breadcrumb}
@@ -187,7 +188,7 @@ export default async function Record({
     );
   }
   if (section === "scenes") {
-    const s = sceneRepository.bySlug(u.id, recordSlug);
+    const s = await sceneRepository.bySlug(u.id, recordSlug);
     if (!s) notFound();
     const c = continuities.find((c) => c.id === s.continuityId);
     const ordered = scenes
@@ -271,6 +272,10 @@ export default async function Record({
   if (section === "continuities") {
     const c = continuities.find((c) => c.slug === recordSlug);
     if (!c) notFound();
+    const [continuityEvents, continuityScenes] = await Promise.all([
+      timelineRepository.list(u.id, c.id),
+      sceneRepository.list(u.id, c.id),
+    ]);
     return (
       <div className="page-width content-page">
         {breadcrumb}
@@ -294,20 +299,19 @@ export default async function Record({
         </div>
         <section>
           <SectionHeading title="Recorded moments" />
-          {eventView(timelineRepository.list(u.id, c.id))}
+          {eventView(continuityEvents)}
         </section>
         <section>
           <SectionHeading title="Scenes in this continuity" />
-          {sceneView(sceneRepository.list(u.id, c.id))}
+          {sceneView(continuityScenes)}
         </section>
       </div>
     );
   }
   if (section === "relationships") {
-    const r = archive.relationships(u.id).find((r) => r.slug === recordSlug);
+    const r = (await archive.relationships(u.id)).find((r) => r.slug === recordSlug);
     if (!r) notFound();
-    const events = timelineRepository
-      .list(u.id, r.continuityId)
+    const events = (await timelineRepository.list(u.id, r.continuityId))
       .filter(
         (e) =>
           r.characterIds.filter((id) => e.characterIds.includes(id)).length >=
@@ -361,6 +365,8 @@ export default async function Record({
   if (section === "locations") {
     const l = locations.find((l) => l.slug === recordSlug);
     if (!l) notFound();
+    const placeEvents = (await timelineRepository.list(u.id, main))
+      .filter((e) => e.locationId === l.id);
     return (
       <div className="page-width content-page">
         {breadcrumb}
@@ -403,11 +409,7 @@ export default async function Record({
         </section>
         <section>
           <SectionHeading title="Moments in this place" />
-          {eventView(
-            timelineRepository
-              .list(u.id, main)
-              .filter((e) => e.locationId === l.id),
-          )}
+          {eventView(placeEvents)}
         </section>
         <section>
           <SectionHeading title="Scenes" />
@@ -421,9 +423,11 @@ export default async function Record({
     );
   }
   if (section === "vehicles") {
-    const v = archive.vehicles(u.id).find((v) => v.slug === recordSlug);
+    const v = (await archive.vehicles(u.id)).find((v) => v.slug === recordSlug);
     if (!v) notFound();
     const owner = characters.find((ch) => ch.id === v.ownerId);
+    const vehicleEvents = (await timelineRepository.list(u.id, v.continuityId))
+      .filter((e) => v.eventIds.includes(e.id));
     return (
       <div className="page-width content-page">
         {breadcrumb}
@@ -464,11 +468,7 @@ export default async function Record({
         </dl>
         <section>
           <SectionHeading title="In the story" />
-          {eventView(
-            timelineRepository
-              .list(u.id, v.continuityId)
-              .filter((e) => v.eventIds.includes(e.id)),
-          )}
+          {eventView(vehicleEvents)}
         </section>
         <section>
           <SectionHeading title="Related scenes" />
@@ -478,7 +478,7 @@ export default async function Record({
     );
   }
   if (section === "lore") {
-    const l = archive.lore(u.id).find((l) => l.slug === recordSlug);
+    const l = (await archive.lore(u.id)).find((l) => l.slug === recordSlug);
     if (!l) notFound();
     return (
       <div className="page-width content-page">

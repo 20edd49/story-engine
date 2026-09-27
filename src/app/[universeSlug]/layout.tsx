@@ -8,7 +8,7 @@ export default async function UniverseLayout({
   children: React.ReactNode;
   params: Promise<{ universeSlug: string }>;
 }) {
-  const u = universeRepository.bySlug((await params).universeSlug);
+  const u = await universeRepository.bySlug((await params).universeSlug);
   if (!u) notFound();
   return (
     <div

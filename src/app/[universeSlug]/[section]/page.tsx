@@ -43,24 +43,29 @@ export default async function Section({
   searchParams: Promise<{ continuity?: string; category?: string }>;
 }) {
   const { universeSlug, section } = await params;
-  const u = universeRepository.bySlug(universeSlug);
+  const u = await universeRepository.bySlug(universeSlug);
   if (!u) notFound();
   if (section === "overview") redirect(`/${u.slug}`);
   const nav = u.navigation.find((n) => n.module === section);
   if (!nav) notFound();
   const filters = await searchParams;
-  const cs = continuity.list(u.id);
+  const cs = await continuity.list(u.id);
   const selected = ["family", "vehicles"].includes(section)
     ? u.defaultContinuityId
     : filters.continuity || u.defaultContinuityId;
-  const c = continuity.byId(u.id, selected);
+  const c = await continuity.byId(u.id, selected);
   if (!c) notFound();
-  const characters = chars.list(u.id);
-  const events = timelineRepository.list(u.id, c.id);
-  const scenes = sceneRepository.list(u.id);
-  const locations = archive.locations(u.id);
-  const families = archive
-    .relationships(u.id, c.id)
+  const [characters, events, scenes, locations, relationships, rules, loreItems, vehicles] = await Promise.all([
+    chars.list(u.id),
+    timelineRepository.list(u.id, c.id),
+    sceneRepository.list(u.id),
+    archive.locations(u.id),
+    ["family", "relationships"].includes(section) ? archive.relationships(u.id, c.id) : Promise.resolve([]),
+    section === "canon" ? archive.canon(u.id, c.id) : Promise.resolve([]),
+    section === "lore" ? archive.lore(u.id, c.id) : Promise.resolve([]),
+    section === "vehicles" ? archive.vehicles(u.id) : Promise.resolve([]),
+  ]);
+  const families = relationships
     .filter((r) => r.members?.some((m) => m.role === "parent"));
   return (
     <div className="page-width content-page">
@@ -117,7 +122,7 @@ export default async function Section({
         <>
           <ContinuityFilter continuities={cs} selected={c.id} />
           <div className="record-grid">
-            {archive.relationships(u.id, c.id).map((r) => (
+            {relationships.map((r) => (
               <RecordCard
                 key={r.id}
                 href={`/${u.slug}/relationships/${r.slug}`}
@@ -127,7 +132,7 @@ export default async function Section({
               />
             ))}
           </div>
-          {!archive.relationships(u.id, c.id).length && (
+          {!relationships.length && (
             <EmptyState
               title="Connections, yet to be mapped."
               description="Relationships will appear here when their details are confirmed."
@@ -159,12 +164,11 @@ export default async function Section({
       {section === "canon" && (
         <>
           <ContinuityFilter continuities={cs} selected={c.id} />
-          {[...new Set(archive.canon(u.id, c.id).map((r) => r.category))].map(
+          {[...new Set(rules.map((r) => r.category))].map(
             (category) => (
               <section className="canon-section" key={category}>
                 <SectionHeading title={category} />
-                {archive
-                  .canon(u.id, c.id)
+                {rules
                   .filter((r) => r.category === category)
                   .map((r, i) => (
                     <article className="canon-rule" key={r.id}>
@@ -180,7 +184,7 @@ export default async function Section({
               </section>
             ),
           )}
-          {!archive.canon(u.id, c.id).length && (
+          {!rules.length && (
             <EmptyState
               title="A foundation awaiting its first records."
               description="Canon rules have not yet been supplied for this continuity. Archive placeholders do not establish story canon."
@@ -192,7 +196,7 @@ export default async function Section({
         <>
           <ContinuityFilter continuities={cs} selected={c.id} />
           <div className="record-grid">
-            {archive.lore(u.id, c.id).map((l) => (
+            {loreItems.map((l) => (
               <RecordCard
                 key={l.id}
                 href={`/${u.slug}/lore/${l.slug}`}
@@ -202,7 +206,7 @@ export default async function Section({
               />
             ))}
           </div>
-          {!archive.lore(u.id, c.id).length && <EmptyState />}
+          {!loreItems.length && <EmptyState />}
         </>
       )}
       {section === "continuities" && (
@@ -223,7 +227,7 @@ export default async function Section({
       )}
       {section === "vehicles" && (
         <div className="record-grid">
-          {archive.vehicles(u.id).map((v) => (
+          {vehicles.map((v) => (
             <RecordCard
               key={v.id}
               href={`/${u.slug}/vehicles/${v.slug}`}

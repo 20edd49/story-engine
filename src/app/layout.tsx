@@ -12,15 +12,19 @@ export const metadata: Metadata = {
     "A personal story archive. Explore characters, histories, and the worlds they call home.",
   robots: { index: false, follow: false },
 };
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [universes, index] = await Promise.all([
+    universeRepository.list(),
+    searchArchive(),
+  ]);
   return (
     <html lang="en">
       <body>
-        <Shell universes={universeRepository.list()} index={searchArchive()} />
+        <Shell universes={universes} index={index} />
         <main id="main">{children}</main>
         <footer className="site-footer">
           <Link href="/" className="footer-wordmark">
