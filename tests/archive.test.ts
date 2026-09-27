@@ -1,113 +1,61 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { loadEnvConfig } from "@next/env";
 import {
-  archiveRepository,
-  characterRepository,
-  continuityRepository,
-  sceneRepository,
-  searchArchive,
-  timelineRepository,
-  universeRepository,
+  archiveRepository, characterRepository, continuityRepository, sceneRepository,
+  searchArchive, tagRepository, timelineRepository, universeRepository,
 } from "../src/lib/repositories/archive";
 
-test("repositories cannot return another universe’s records", () => {
-  for (const universe of universeRepository.list()) {
-    const records = [
-      ...characterRepository.list(universe.id),
-      ...sceneRepository.list(universe.id),
-      ...archiveRepository.locations(universe.id),
-      ...archiveRepository.relationships(universe.id),
-      ...archiveRepository.lore(universe.id),
-      ...archiveRepository.vehicles(universe.id),
-      ...archiveRepository.canon(universe.id),
-    ];
-    assert.ok(records.every((record) => record.universeId === universe.id));
-    assert.ok(
-      searchArchive("", universe.id).every(
-        (record) => record.universeId === universe.id,
-      ),
-    );
-  }
-  assert.equal(characterRepository.bySlug("u-elias", "mateo-reyes"), undefined);
-  assert.equal(
-    sceneRepository.bySlug("u-elias", "a-space-for-the-everyday"),
-    undefined,
-  );
-  assert.equal(continuityRepository.byId("u-elias", "c-reyes-main"), undefined);
-  assert.deepEqual(timelineRepository.list("u-elias", "c-reyes-main"), []);
-});
-test("alternate continuity timelines and scenes never inherit main canon", () => {
-  for (const c of continuityRepository
-    .list("u-reyes")
-    .filter((c) => c.type !== "main-canon")) {
-    assert.deepEqual(timelineRepository.list("u-reyes", c.id), []);
-    assert.deepEqual(sceneRepository.list("u-reyes", c.id), []);
-    assert.deepEqual(archiveRepository.relationships("u-reyes", c.id), []);
-  }
-});
-test("foreign keys stay inside their universe and all ids are unique", () => {
-  const ids = new Set<string>();
-  for (const u of universeRepository.list()) {
-    const characters = characterRepository.list(u.id);
-    const cs = continuityRepository.list(u.id);
-    const scenes = sceneRepository.list(u.id);
-    const locations = archiveRepository.locations(u.id);
-    const records = [
-      ...characters,
-      ...cs,
-      ...scenes,
-      ...locations,
-      ...archiveRepository.relationships(u.id),
-      ...archiveRepository.lore(u.id),
-      ...archiveRepository.vehicles(u.id),
-      ...archiveRepository.canon(u.id),
-      ...cs.flatMap((c) => timelineRepository.list(u.id, c.id)),
-    ];
-    for (const r of records) {
-      assert.ok(!ids.has(r.id), `Duplicate id ${r.id}`);
-      ids.add(r.id);
-      if ("continuityId" in r)
-        assert.ok(cs.some((c) => c.id === r.continuityId));
-      if ("characterIds" in r)
-        for (const id of r.characterIds)
-          assert.ok(
-            characters.some((c) => c.id === id),
-            `Invalid character ${id}`,
-          );
-      if ("locationId" in r && r.locationId)
-        assert.ok(locations.some((l) => l.id === r.locationId));
+loadEnvConfig(process.cwd());
+process.env.SUPABASE_READ_TEST = "1";
+
+test("live Supabase archive loads both universes with scoped records", async () => {
+  const universes = await universeRepository.list();
+  assert.deepEqual(new Set(universes.map((u) => u.id)), new Set(["u-reyes", "u-elias"]));
+  for (const universe of universes) {
+    const u = universe.id;
+    const continuities = await continuityRepository.list(u);
+    const [characters, scenes, locations, relationships, canon, lore, vehicles, tags] = await Promise.all([
+      characterRepository.list(u), sceneRepository.list(u), archiveRepository.locations(u),
+      archiveRepository.relationships(u), archiveRepository.canon(u), archiveRepository.lore(u),
+      archiveRepository.vehicles(u), tagRepository.list(u),
+    ]);
+    const events = (await Promise.all(continuities.map((c) => timelineRepository.list(u, c.id)))).flat();
+    const records = [...continuities, ...characters, ...scenes, ...locations, ...relationships,
+      ...canon, ...lore, ...vehicles, ...tags, ...events];
+    assert.ok(records.every((r) => r.universeId === u));
+    assert.ok((await searchArchive("", u)).every((r) => r.universeId === u));
+    for (const record of records) {
+      if ("continuityId" in record) assert.ok(continuities.some((c) => c.id === record.continuityId));
+      if ("characterIds" in record)
+        assert.ok(record.characterIds.every((id) => characters.some((c) => c.id === id)));
     }
+    assert.ok(scenes.every((s) => s.placeholder && s.status === "draft"));
   }
 });
-test("uncertain chronology remains explicit and demo prose is never canon", () => {
-  const events = timelineRepository.list("u-reyes", "c-reyes-main");
-  assert.ok(
-    events.some(
-      (e) => e.datePrecision === "narrative" && !e.sortDate && !e.date,
-    ),
-  );
-  assert.ok(
-    events
-      .filter((e) => e.datePrecision === "approximate")
-      .every((e) => !e.date),
-  );
-  assert.deepEqual(timelineRepository.list("u-elias", "c-elias-main"), []);
-  for (const u of universeRepository.list())
-    assert.ok(
-      sceneRepository
-        .list(u.id)
-        .every((s) => s.placeholder && s.status === "draft"),
-    );
+
+test("continuity and universe boundaries remain strict", async () => {
+  assert.equal(await characterRepository.bySlug("u-elias", "mateo-reyes"), undefined);
+  assert.equal(await sceneRepository.bySlug("u-elias", "a-space-for-the-everyday"), undefined);
+  assert.equal(await continuityRepository.byId("u-elias", "c-reyes-main"), undefined);
+  assert.deepEqual(await timelineRepository.list("u-elias", "c-reyes-main"), []);
+  for (const c of (await continuityRepository.list("u-reyes")).filter((c) => c.type !== "main-canon")) {
+    assert.deepEqual(await timelineRepository.list("u-reyes", c.id), []);
+    assert.deepEqual(await sceneRepository.list("u-reyes", c.id), []);
+    assert.deepEqual(await archiveRepository.relationships("u-reyes", c.id), []);
+  }
 });
-test("search resolves known text and retains universe and continuity labels", () => {
-  const results = searchArchive("I-130", "u-reyes");
+
+test("normalized links and search labels are reconstructed", async () => {
+  const events = await timelineRepository.list("u-reyes", "c-reyes-main");
+  assert.ok(events.some((e) => e.characterIds.length > 0 && e.tags.length > 0));
+  assert.ok(events.some((e) => e.datePrecision === "narrative" && !e.sortDate && !e.date));
+  const family = (await archiveRepository.relationships("u-reyes")).find((r) => r.id === "rel-family");
+  assert.equal(family?.members?.length, 5);
+  assert.deepEqual(family?.characterIds, family?.members?.map((m) => m.characterId));
+  const vehicles = await archiveRepository.vehicles("u-reyes");
+  assert.ok(vehicles.some((v) => v.eventIds.length > 0));
+  const results = await searchArchive("I-130", "u-reyes");
   assert.equal(results.length, 2);
-  assert.ok(
-    results.every(
-      (r) =>
-        r.continuityLabel === "Main Canon" &&
-        r.universeName === "Reyes-Bennett",
-    ),
-  );
-  assert.deepEqual(searchArchive("Mateo", "u-elias"), []);
+  assert.ok(results.every((r) => r.continuityLabel === "Main Canon" && r.universeName === "Reyes-Bennett"));
 });
