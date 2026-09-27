@@ -1,4 +1,5 @@
 export type ImportKind = "scene" | "character" | "event" | "relationship" | "canon" | "tag";
+export const MAX_SMART_IMPORT_CHARS = 16_000;
 export type ImportDisposition = "existing" | "new";
 export type ReferenceState = "resolved" | "unresolved" | "cross-universe" | "wrong-continuity";
 
@@ -14,6 +15,23 @@ export type ImportReference = {
   state: ReferenceState;
 };
 
+export type SourceRange = { start: number; end: number };
+export type ImportChapter = {
+  title?: string;
+  number?: string;
+  sourceRange?: SourceRange;
+};
+export type ImportUnresolved = {
+  input: string;
+  reason: string;
+  sourceRange?: SourceRange;
+};
+export type ImportMetadataNote = {
+  kind: "timeline" | "canon" | "tag" | "character" | "location" | "chapter" | "other";
+  text: string;
+  sourceRange: SourceRange;
+};
+
 export type DraftBase = {
   id?: string;
   slug?: string;
@@ -26,6 +44,14 @@ export type DraftScene = DraftBase & {
   body: string;
   storyOrder?: number;
   dateText?: string;
+  date?: string;
+  dateDisplay?: string;
+  datePrecision?: "exact" | "approximate" | "year" | "narrative";
+  sourceRange?: SourceRange;
+  bodyRanges?: SourceRange[];
+  boundaryReason?: string;
+  generatedTitle?: boolean;
+  locationRef?: ImportReference;
   characterRefs: ImportReference[];
   povCharacterRefs: ImportReference[];
   tagRefs: ImportReference[];
@@ -34,6 +60,7 @@ export type DraftScene = DraftBase & {
 export type DraftCharacter = DraftBase & {
   name: string;
   description?: string;
+  facts?: string[];
   tagRefs: ImportReference[];
 };
 
@@ -41,6 +68,11 @@ export type DraftTimelineEvent = DraftBase & {
   title: string;
   description?: string;
   dateText?: string;
+  date?: string;
+  dateDisplay?: string;
+  datePrecision?: "exact" | "approximate" | "year" | "narrative";
+  sourceRange?: SourceRange;
+  locationRef?: ImportReference;
   sceneRefs: ImportReference[];
   characterRefs: ImportReference[];
   tagRefs: ImportReference[];
@@ -50,6 +82,7 @@ export type DraftRelationship = DraftBase & {
   title: string;
   relationshipType?: string;
   summary?: string;
+  facts?: string[];
   characterRefs: ImportReference[];
 };
 
@@ -63,15 +96,24 @@ export type DraftTag = DraftBase & {
   name: string;
 };
 
+export type DraftLocation = DraftBase & {
+  name: string;
+  description?: string;
+};
+
 export type ImportDraft = {
   universeId: string;
   continuityId: string;
+  chapter?: ImportChapter;
   scenes: DraftScene[];
   characters: DraftCharacter[];
   timelineEvents: DraftTimelineEvent[];
   relationships: DraftRelationship[];
   canonRules: DraftCanonRule[];
   tags: DraftTag[];
+  locations?: DraftLocation[];
+  unresolvedReferences?: ImportUnresolved[];
+  metadataNotes?: ImportMetadataNote[];
   unresolvedText: string[];
   warnings: ImportIssue[];
   validationErrors: ImportIssue[];
@@ -103,4 +145,5 @@ export type ImportCatalog = {
   relationships: CatalogRecord[];
   canonRules: CatalogRecord[];
   tags: CatalogRecord[];
+  locations?: CatalogRecord[];
 };

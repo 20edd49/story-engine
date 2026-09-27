@@ -22,6 +22,7 @@ export function validateImportDraft(input: ImportDraft, catalog: ImportCatalog):
     { key: "relationships", items: draft.relationships, existing: catalog.relationships },
     { key: "canonRules", items: draft.canonRules, existing: catalog.canonRules },
     { key: "tags", items: draft.tags, existing: catalog.tags },
+    { key: "locations", items: draft.locations ?? [], existing: catalog.locations ?? [] },
   ];
   const seenIds = new Map<string, string>();
   for (const group of groups) {
@@ -54,7 +55,7 @@ export function validateImportDraft(input: ImportDraft, catalog: ImportCatalog):
     });
   }
 
-  const validateRefs = (refs: ImportReference[], path: string, kind: "character" | "scene" | "tag") => {
+  const validateRefs = (refs: ImportReference[], path: string, kind: "character" | "scene" | "tag" | "location") => {
     refs.forEach((ref, index) => {
       const refPath = `${path}[${index}]`;
       if (ref.state === "cross-universe")
@@ -71,6 +72,7 @@ export function validateImportDraft(input: ImportDraft, catalog: ImportCatalog):
     validateRefs(scene.characterRefs, `scenes[${index}].characterRefs`, "character");
     validateRefs(scene.povCharacterRefs, `scenes[${index}].povCharacterRefs`, "character");
     validateRefs(scene.tagRefs, `scenes[${index}].tagRefs`, "tag");
+    if (scene.locationRef) validateRefs([scene.locationRef], `scenes[${index}].locationRef`, "location");
     if (scene.storyOrder !== undefined) {
       const otherDraft = draft.scenes.findIndex((other, otherIndex) =>
         otherIndex !== index && other.storyOrder === scene.storyOrder);
@@ -88,6 +90,7 @@ export function validateImportDraft(input: ImportDraft, catalog: ImportCatalog):
     validateRefs(item.characterRefs, `timelineEvents[${index}].characterRefs`, "character");
     validateRefs(item.sceneRefs, `timelineEvents[${index}].sceneRefs`, "scene");
     validateRefs(item.tagRefs, `timelineEvents[${index}].tagRefs`, "tag");
+    if (item.locationRef) validateRefs([item.locationRef], `timelineEvents[${index}].locationRef`, "location");
   });
   draft.relationships.forEach((item, index) => {
     validateRefs(item.characterRefs, `relationships[${index}].characterRefs`, "character");
@@ -95,6 +98,9 @@ export function validateImportDraft(input: ImportDraft, catalog: ImportCatalog):
       add("unresolved-relationship", "A relationship needs at least two explicit character references.",
         `relationships[${index}].characterRefs`);
   });
+  (draft.unresolvedReferences ?? []).forEach((item, index) =>
+    add("unresolved-reference", `"${item.input}" needs review: ${item.reason}`,
+      `unresolvedReferences[${index}]`));
   draft.validationErrors = errors;
   return draft;
 }

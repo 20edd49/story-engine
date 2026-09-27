@@ -55,6 +55,7 @@ export function normalizeImportDraft(input: ImportDraft, catalog: ImportCatalog)
   prepare(draft.relationships, catalog.relationships);
   prepare(draft.canonRules, catalog.canonRules);
   prepare(draft.tags, catalog.tags);
+  prepare(draft.locations ?? [], catalog.locations ?? []);
 
   // Tag names are proposed only when explicitly named in a record's Tags field.
   const tagRefs = [
@@ -84,6 +85,10 @@ export function normalizeImportDraft(input: ImportDraft, catalog: ImportCatalog)
   const tags = [
     ...catalog.tags,
     ...draft.tags.map((item) => candidate(item, item.name, u)),
+  ];
+  const locations = [
+    ...(catalog.locations ?? []),
+    ...(draft.locations ?? []).map((item) => candidate(item, item.name, u)),
   ];
   const resolve = (refs: ImportReference[], choices: CatalogRecord[], path: string, needsContinuity = false) => {
     for (const ref of refs) {
@@ -119,12 +124,14 @@ export function normalizeImportDraft(input: ImportDraft, catalog: ImportCatalog)
     resolve(item.characterRefs, characters, `scenes[${i}].characterRefs`);
     resolve(item.povCharacterRefs, characters, `scenes[${i}].povCharacterRefs`);
     resolve(item.tagRefs, tags, `scenes[${i}].tagRefs`);
+    if (item.locationRef) resolve([item.locationRef], locations, `scenes[${i}].locationRef`);
   });
   draft.characters.forEach((item, i) => resolve(item.tagRefs, tags, `characters[${i}].tagRefs`));
   draft.timelineEvents.forEach((item, i) => {
     resolve(item.characterRefs, characters, `timelineEvents[${i}].characterRefs`);
     resolve(item.sceneRefs, scenes, `timelineEvents[${i}].sceneRefs`, true);
     resolve(item.tagRefs, tags, `timelineEvents[${i}].tagRefs`);
+    if (item.locationRef) resolve([item.locationRef], locations, `timelineEvents[${i}].locationRef`);
   });
   draft.relationships.forEach((item, i) =>
     resolve(item.characterRefs, characters, `relationships[${i}].characterRefs`));

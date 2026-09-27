@@ -13,6 +13,9 @@
 .import-actions { display: flex; align-items: center; gap: 18px; margin-top: 18px; }
 .import-actions .button { padding: 13px 22px; border: 1px solid var(--accent); background: var(--accent); color: var(--paper); font-weight: 700; }
 .import-actions .button:disabled { opacity: .45; }
+.import-actions .import-smart-button { background: transparent; color: var(--accent); }
+.import-action-note { margin-top: 12px; font-size: 12px; }
+.import-request-error { margin-top: 16px; padding: 12px 14px; border: 1px solid #a45f59; color: #e4a99f; }
 .import-actions span, .import-record-meta, .import-muted { color: var(--muted); font-size: 12px; }
 .import-format { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
 .import-format summary, .import-prose summary { color: var(--accent); font-size: 13px; }
@@ -38,9 +41,14 @@
 .import-results { margin-top: 64px; }
 .import-results-heading { margin-bottom: 30px; }
 .import-results-heading h2 { margin-bottom: 8px; }
+.import-results-heading strong { color: var(--accent); font-weight: 700; }
+.import-chapter { padding: 20px 24px; margin-bottom: 24px; border: 1px solid var(--line); background: var(--surface); }
+.import-chapter h3 { font-size: 22px; margin-bottom: 6px; }
 .import-unresolved { margin-bottom: 40px; padding: 24px; }
 .import-unresolved h3 { font-size: 23px; }
 .import-unresolved p { margin-top: 8px; }
+.import-unresolved ul { margin: 14px 0 0; padding-left: 20px; }
+.import-unresolved article { margin-top: 14px; }
 .import-preview-section { border-top: 1px solid var(--line); padding: 28px 0 34px; }
 .import-section-heading { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
 .import-section-heading h3 { font-size: 29px; }
@@ -57,6 +65,7 @@
 .import-ref-list { list-style: none; margin: 16px 0 0; padding: 0; }
 .import-ref-list li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); }
 .import-ref-list small { color: var(--muted); }
+.import-ref-kind { min-width: 67px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .import-ref-state { color: var(--accent); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .import-ref-state.unresolved, .import-ref-state.cross-universe, .import-ref-state.wrong-continuity { color: #e4a99f; }
 .import-prose { margin-top: 18px; }
