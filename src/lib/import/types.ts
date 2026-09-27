@@ -1,7 +1,7 @@
 export type ImportKind = "scene" | "character" | "event" | "relationship" | "canon" | "tag";
 export const MAX_SMART_IMPORT_CHARS = 16_000;
 export type ImportDisposition = "existing" | "new";
-export type ReferenceState = "resolved" | "unresolved" | "cross-universe" | "wrong-continuity";
+export type ReferenceState = "resolved" | "proposed" | "unresolved" | "cross-universe" | "wrong-continuity";
 
 export type ImportIssue = {
   code: string;
@@ -31,6 +31,8 @@ export type ImportMetadataNote = {
   text: string;
   sourceRange: SourceRange;
 };
+export type ImportSourceSpan = { sourceRange: SourceRange; text: string };
+export type ResolvedEntity = { kind: string; id: string; label: string };
 
 export type DraftBase = {
   id?: string;
@@ -115,6 +117,8 @@ export type ImportDraft = {
   unresolvedReferences?: ImportUnresolved[];
   metadataNotes?: ImportMetadataNote[];
   unresolvedText: string[];
+  unresolvedSpans?: ImportSourceSpan[];
+  resolvedEntities?: ResolvedEntity[];
   warnings: ImportIssue[];
   validationErrors: ImportIssue[];
 };

@@ -60,7 +60,7 @@ title: Event
 scenes: sc-alt
 [[/event]]`);
   assert.equal(draft.scenes[0].characterRefs[0].state, "resolved");
-  assert.equal(draft.scenes[0].characterRefs[1].state, "resolved");
+  assert.equal(draft.scenes[0].characterRefs[1].state, "proposed");
   assert.equal(draft.scenes[0].characterRefs[2].state, "cross-universe");
   assert.equal(draft.scenes[0].characterRefs[3].state, "unresolved");
   assert.equal(draft.timelineEvents[0].sceneRefs[0].state, "wrong-continuity");

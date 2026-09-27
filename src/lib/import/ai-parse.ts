@@ -104,8 +104,14 @@ const base = (record: AIBase, sourceLine: number) => ({
   id: optional(record.id), slug: optional(record.slug), sourceLine, disposition: "new" as const,
 });
 function groundedDate(record: AIDate, rawText: string, warnings: ImportIssue[], path: string) {
+  const dateLike = (value: string) => /\b(?:19|20)\d{2}\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b|\b\d{1,2}:\d{2}\s*(?:am|pm)?\b|\b\d{1,2}\s*(?:am|pm)\b|\b(?:noon|midnight)\b/i.test(value);
   const grounded = (value: string | null, field: string) => {
     if (!value) return undefined;
+    if (!dateLike(value)) {
+      warnings.push({ code: "relative-chronology-not-date",
+        message: `AI-proposed ${field} describes narrative chronology, not a date or time; it was omitted.`, path });
+      return undefined;
+    }
     if (rawText.toLowerCase().includes(value.toLowerCase())) return value;
     warnings.push({
       code: "unsupported-date",
@@ -147,17 +153,12 @@ export function mapSmartImportOutput(
   const warnings = [...output.warnings];
   const usedBodyRanges: SourceRange[] = [];
   const markerLines = lines.flatMap((line, index) =>
-    /^(TIMELINE NOTE|CANON NOTE|TAG IDEAS|CHARACTER NOTE|LOCATION NOTE)(?:\s*:.*)?\s*$/i
+    /^(TIMELINE NOTE|CANON NOTE|TAG IDEAS|CHARACTER NOTE|LOCATION NOTE|UNIVERSE|CONTINUITY|LOCATION|CHARACTERS)(?:\s*:.*)?\s*$/i
       .test(line.replace(/\r\n$|\n$|\r$/, "").trim()) ? [index + 1] : []);
   for (const [index, note] of output.metadataNotes.entries())
     checkRange(note.sourceRange, lines.length, `metadataNotes[${index}]`);
-  const metadataNotes = output.metadataNotes.map((note, index) => {
+  const metadataNotes = output.metadataNotes.map((note) => {
     const text = lines.slice(note.sourceRange.start - 1, note.sourceRange.end).join("");
-    if (text !== note.text) warnings.push({
-      code: "metadata-reconstructed",
-      message: "Metadata note was reconstructed verbatim from its source lines.",
-      path: `metadataNotes[${index}].text`,
-    });
     return { ...note, text };
   });
   if (output.chapter?.sourceRange) checkRange(output.chapter.sourceRange, lines.length, "chapter");
@@ -183,8 +184,9 @@ export function mapSmartImportOutput(
     return {
       ...base(item, item.sourceRange.start),
       ...groundedDate(item, rawText, warnings, `scenes[${index}]`),
-      title: item.title ?? "",
-      generatedTitle: item.generatedTitle, sourceRange: item.sourceRange,
+      title: item.title?.trim() || `Proposed scene ${index + 1} (lines ${item.sourceRange.start}–${item.sourceRange.end})`,
+      generatedTitle: item.generatedTitle || !item.title?.trim() || !rawText.includes(item.title),
+      sourceRange: item.sourceRange,
       bodyRanges: item.bodyRanges, body, boundaryReason: optional(item.boundaryReason),
       storyOrder: optional(item.storyOrder),
       locationRef: item.locationRef ? reference(item.locationRef) : undefined,
@@ -216,6 +218,18 @@ export function mapSmartImportOutput(
   output.scenes.forEach((item) => item.bodyRanges.forEach(cover));
   output.metadataNotes.forEach((item) => cover(item.sourceRange));
   cover(output.chapter?.sourceRange ?? null);
+  // Source scope/entity declarations are annotations, not scene prose.
+  lines.forEach((line, index) => {
+    if (covered.has(index + 1)) return;
+    const match = /^(UNIVERSE|CONTINUITY|LOCATION|CHARACTERS)\s*:\s*\S/i.exec(line.trim());
+    if (!match) return;
+    metadataNotes.push({
+      kind: match[1].toUpperCase() === "LOCATION" ? "location"
+        : match[1].toUpperCase() === "CHARACTERS" ? "character" : "other",
+      text: line, sourceRange: { start: index + 1, end: index + 1 },
+    });
+    covered.add(index + 1);
+  });
   output.scenes.forEach((item) => {
     for (let line = item.sourceRange.start; line <= item.sourceRange.end; line++) {
       const text = lines[line - 1].trim();
@@ -223,20 +237,36 @@ export function mapSmartImportOutput(
         covered.add(line);
     }
   });
+  // Uncovered separators and blank lines are layout syntax. Body ranges still win,
+  // so an authored separator inside prose remains untouched.
+  lines.forEach((line, index) => {
+    if (!line.trim() || /^\s*(?:-{3,}|_{3,}|\*{3,})\s*$/.test(line)) covered.add(index + 1);
+  });
   const unresolvedText: string[] = [];
+  const unresolvedSpans: { sourceRange: SourceRange; text: string }[] = [];
   let pending = "";
+  let pendingStart = 0;
   for (let index = 0; index < lines.length; index++) {
     if (covered.has(index + 1)) {
-      if (pending.trim()) unresolvedText.push(pending);
+      if (pending.trim()) {
+        unresolvedText.push(pending);
+        unresolvedSpans.push({ sourceRange: { start: pendingStart, end: index }, text: pending });
+      }
       pending = "";
-    } else pending += lines[index];
+    } else {
+      if (!pending) pendingStart = index + 1;
+      pending += lines[index];
+    }
   }
-  if (pending.trim()) unresolvedText.push(pending);
-  if (unresolvedText.length) warnings.push({
+  if (pending.trim()) {
+    unresolvedText.push(pending);
+    unresolvedSpans.push({ sourceRange: { start: pendingStart, end: lines.length }, text: pending });
+  }
+  unresolvedSpans.forEach((span) => warnings.push({
     code: "unmapped-source-text",
-    message: "Some source text was not mapped to a scene or extracted note and remains unresolved.",
-    path: "unresolvedText",
-  });
+    message: `Source lines ${span.sourceRange.start}–${span.sourceRange.end} were not mapped and need review.`,
+    path: `source lines ${span.sourceRange.start}–${span.sourceRange.end}`,
+  }));
   return {
     universeId, continuityId,
     chapter: output.chapter ? {
@@ -277,6 +307,7 @@ export function mapSmartImportOutput(
       input: item.input, reason: item.reason, sourceRange: optional(item.sourceRange),
     })),
     unresolvedText,
+    unresolvedSpans,
     warnings, validationErrors: [],
   };
 }
@@ -301,7 +332,8 @@ Exclude explicit headers, separators, TIMELINE NOTE, CANON NOTE, TAG IDEAS, CHAR
 Put extracted annotations in metadataNotes and appropriate proposal arrays; if meaning remains unclear, use unresolvedReferences/warnings.
 Do not strip unusual lines that are part of authored prose. A separator or heading is a boundary signal, not a guaranteed new scene.
 Use scene sourceRange and boundaryReason to explain proposed boundaries; time/place/POV shifts may justify a boundary.
-Use null for unsupported title/date/order/location/POV. Mark any generated scene title with generatedTitle=true.
+If a prose scene has no explicit title, propose a concise neutral title and set generatedTitle=true. Never present that title as source text.
+Use null for unsupported date/order/location/POV. Relative narrative chronology belongs in metadataNotes or event relations, never in date/dateDisplay.
 Use null IDs for genuinely new entities; use listed IDs only for confident existing matches.
 Date fields must only reflect dates explicitly supplied in the source.
 Return compact factual metadata; never summarize or rewrite the authored scene body.`;

@@ -18,6 +18,7 @@ type PreviewItem = {
   details?: string[];
   refs?: { kind: string; reference: ImportReference }[];
   body?: string;
+  generatedTitle?: boolean;
 };
 
 const labeled = (refs: ImportReference[], kind: string) =>
@@ -37,7 +38,8 @@ function PreviewSection({ title, items, expandBody }: {
           {items.map((item, index) => (
             <article className="import-card" key={`${title}-${item.sourceLine}-${index}`}>
               <div className="import-card-top">
-                <h4>{item.title || "Untitled record"}</h4>
+                <h4>{item.title || "Untitled record"}{item.generatedTitle &&
+                  <small className="import-generated-title"> AI-generated title proposal</small>}</h4>
                 <span className={`import-status ${item.disposition}`}>
                   {item.disposition === "existing" ? "Existing entity" : "New proposed entity"}
                 </span>
@@ -137,7 +139,7 @@ export function ImportWorkspace({ catalog }: { catalog: ImportCatalog }) {
         item.storyOrder === undefined ? "Story order pending" : `Story order: ${item.storyOrder}`,
         item.sourceRange ? `Source lines: ${item.sourceRange.start}–${item.sourceRange.end}` : "",
         item.boundaryReason ? `Boundary: ${item.boundaryReason}` : "",
-        item.generatedTitle ? "AI-generated title metadata" : ""],
+        item.generatedTitle ? "Title is proposed metadata, not source text" : ""],
       refs: [
         ...labeled(item.characterRefs, "Character"), ...labeled(item.povCharacterRefs, "POV"),
         ...(item.locationRef ? labeled([item.locationRef], "Location") : []),
@@ -257,7 +259,7 @@ scenes: a-quiet-morning
         <div className="import-results" aria-live="polite">
           <div className="import-results-heading">
             <h2>Structured preview</h2>
-            <p><strong>{previewSource === "smart" ? "AI proposal" : "Quick Import draft"}</strong> · Existing entities are matched by ID or exact slug. New entities are proposals only.</p>
+            <p><strong>{previewSource === "smart" ? "AI proposal" : "Quick Import draft"}</strong> · This is the final normalized draft. Resolved entities use canonical IDs; new entities remain proposals.</p>
           </div>
           {draft.chapter && <section className="import-chapter">
             <h3>Chapter metadata</h3>
@@ -270,9 +272,18 @@ scenes: a-quiet-morning
             <section className="import-unresolved">
               <h3>Unresolved source text</h3>
               <p>Review these notes manually; no canon was inferred from them.</p>
-              {draft.unresolvedText.map((text, index) => <pre key={index}>{text}</pre>)}
+              {draft.unresolvedText.map((text, index) => <article key={index}>
+                {draft.unresolvedSpans?.[index] && <strong>Source lines {draft.unresolvedSpans[index].sourceRange.start}–{draft.unresolvedSpans[index].sourceRange.end}</strong>}
+                <pre>{text}</pre>
+              </article>)}
             </section>
           )}
+          {!!draft.resolvedEntities?.length && <section className="import-unresolved">
+            <h3>Resolved existing entities</h3>
+            <ul>{draft.resolvedEntities.map((item) => <li key={`${item.kind}-${item.id}`}>
+              <strong>RESOLVED</strong> · {item.kind}: {item.label} <small>{item.id}</small>
+            </li>)}</ul>
+          </section>}
           {!!draft.unresolvedReferences?.length && <section className="import-unresolved">
             <h3>Unresolved references</h3>
             <ul>{draft.unresolvedReferences.map((item, index) =>
